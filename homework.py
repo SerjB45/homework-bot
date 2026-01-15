@@ -3,12 +3,17 @@ import os
 import sys
 import time
 from http import HTTPStatus
+from json.decoder import JSONDecodeError
 
 import requests
 from dotenv import load_dotenv
 from telebot import TeleBot
 
-from exceptions import MessageNotSend, TokenNotFound, UnknowStatusHomework
+from exceptions import (
+    MessageNotSend, TokenNotFound, UnknowStatusHomework,
+    ChatIDNotFound, HTTPRequestStatusError, HomeworkError,
+    DateRequestError, HTTPRequestOthersError
+)
 
 load_dotenv()
 
@@ -31,10 +36,14 @@ HOMEWORK_VERDICTS = {
 
 def check_tokens():
     """Функция по проверке токенов."""
-    if not all([PRACTICUM_TOKEN, TELEGRAM_TOKEN]):
-        raise TokenNotFound('Проверьте токены!')
-    if not TELEGRAM_CHAT_ID:
-        raise TokenNotFound('Проверьте ID чата!')
+    tokens = {
+        'PRACTICUM_TOKEN': [PRACTICUM_TOKEN, TokenNotFound],
+        'TELEGRAM_TOKEN': [TELEGRAM_TOKEN, TokenNotFound],
+        'TELEGRAM_CHAT_ID': [TELEGRAM_CHAT_ID, ChatIDNotFound],
+    }
+    for key, values in tokens.items():
+        if not values[0]:
+            raise values[1](key)
 
 
 def send_message(bot, message):
@@ -43,7 +52,6 @@ def send_message(bot, message):
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
     except Exception as error:
-        logging.error(f'Не удалось отправить сообщение: {error}')
         raise MessageNotSend(error)
     else:
         logging.debug('Сообщение успешно отправлено')
@@ -58,29 +66,38 @@ def get_api_answer(timestamp):
             f'Параметры запроса: {ENDPOINT}\n{HEADERS}\n{payload}'
         )
         response = requests.get(ENDPOINT, headers=HEADERS, params=payload)
-        if response.status_code != HTTPStatus.OK:
-            raise ConnectionError(
-                f'Ошибка при запросе к API: '
-                f'код ответа {response.status_code}'
-            )
-
     except Exception as error:
-        logging.error(f'Ошибка при запросе к API: {error}')
-        raise ConnectionError(f'Ошибка при запросе к API: {error}')
+        raise HTTPRequestOthersError(error, response.status_code)
 
-    return response.json()
+    if response.status_code != HTTPStatus.OK:
+        raise HTTPRequestStatusError(f'Эндпоинт {response.url} недоступен.')
+
+    try:
+        response = response.json()
+    except JSONDecodeError as error:
+        raise ValueError(f'Ошибка при конвертации ответа в JSON: {error}')
+
+    return response
 
 
 def check_response(response):
     """Проверка ответа сервера."""
     if not isinstance(response, dict):
         raise TypeError('Аргумент не является словарем')
+
     homeworks = response.get('homeworks')
     current_date = response.get('current_date')
-    if homeworks is None or current_date is None:
-        raise KeyError('Ответ API не соответсвует ожидаемому')
+    if homeworks is None:
+        raise HomeworkError(
+            'Ответ API не соответсвует ожидаемому. '
+            'Не получены данные по домашней работе'
+        )
+    if current_date is None:
+        raise DateRequestError()
+
     if not isinstance(homeworks, list):
         raise TypeError('У списка домашних работ неверный тип данных')
+
     return homeworks
 
 
@@ -89,7 +106,7 @@ def parse_status(homework):
     homework_name = homework.get('homework_name')
     homework_status = homework.get('status')
     if homework_name is None:
-        raise KeyError('В ответе API нет названия работы')
+        raise HomeworkError('В ответе API нет названия работы')
     if homework_status not in HOMEWORK_VERDICTS:
         raise UnknowStatusHomework()
 
@@ -102,11 +119,10 @@ def main():
     try:
         check_tokens()
     except Exception as error:
-        message = error
-        logging.critical(message)
-        sys.exit('Бот остановлен!')
+        logging.critical(error)
+        logging.critical('Бот Остановлен!')
+        sys.exit()
 
-    # Создаем объект класса бота
     bot = TeleBot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
 
