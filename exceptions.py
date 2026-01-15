@@ -1,11 +1,11 @@
 class EnvVariableNotFound(Exception):
     """Исключение при проверке переменных окружения."""
 
-    def __init__(self, message=''):  # noqa: D107
-        self.message = message
+    def __init__(self, var_name=''):  # noqa: D107
+        self.var_name = var_name
 
     def __str__(self):  # noqa: D105
-        return f'Отсутствует переменная окружения: {self.message}. '
+        return f'Отсутствует переменная окружения: {self.var_name}. '
 
 
 class TokenNotFound(EnvVariableNotFound):
@@ -17,7 +17,7 @@ class TokenNotFound(EnvVariableNotFound):
 
 
 class ChatIDNotFound(EnvVariableNotFound):
-    """Исключение при ID чата."""
+    """Исключение при проверке ID чата."""
 
     def __str__(self):  # noqa: D105
         message = super().__str__() + 'Проверьте ID чата!'
