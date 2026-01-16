@@ -9,11 +9,10 @@ import requests
 from dotenv import load_dotenv
 from telebot import TeleBot
 
-from exceptions import (
-    MessageNotSend, TokenNotFound, UnknowStatusHomework,
-    ChatIDNotFound, HTTPRequestStatusError, HomeworkError,
-    DateRequestError, HTTPRequestOthersError
-)
+from exceptions import (ChatIDNotFound, ConvertationError, DateRequestError,
+                        HomeworkError, HTTPRequestOthersError,
+                        HTTPRequestStatusError, MessageNotSend,
+                        ResponseTypeError, TokenNotFound, UnknowStatusHomework)
 
 load_dotenv()
 
@@ -75,15 +74,20 @@ def get_api_answer(timestamp):
     try:
         response = response.json()
     except JSONDecodeError as error:
-        raise ValueError(f'Ошибка при конвертации ответа в JSON: {error}')
+        raise ConvertationError(
+            f'Ошибка при конвертации ответа в JSON: {error}'
+        )
 
     return response
 
 
 def check_response(response):
-    """Проверка ответа сервера."""
+    """Проверка ответа API."""
     if not isinstance(response, dict):
-        raise TypeError('Аргумент не является словарем')
+        raise ResponseTypeError(
+            'response',
+            'Аргумент не является словарем. Проверьте ответ API'
+        )
 
     homeworks = response.get('homeworks')
     current_date = response.get('current_date')
@@ -96,7 +100,10 @@ def check_response(response):
         raise DateRequestError()
 
     if not isinstance(homeworks, list):
-        raise TypeError('У списка домашних работ неверный тип данных')
+        raise ResponseTypeError(
+            'homeworks',
+            'У списка домашних работ неверный тип данных'
+        )
 
     return homeworks
 

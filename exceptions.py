@@ -72,3 +72,20 @@ class HTTPRequestOthersError(Exception):
             f'Ошибка при запросе к API: {self.error}.'
             f'Код ответа {self.status_code}'
         )
+
+
+class ResponseTypeError(TypeError):
+    """Ошибки при некорректных типах в ответе API."""
+
+    def __init__(self, var_name, message=''):  # noqa: D107
+        self.var_name = var_name
+        self.message = message
+
+    def __str__(self):  # noqa: D105
+        return f'Некорректный тип переменной: {self.var_name}. {self.message}'
+
+
+class ConvertationError(TypeError):
+    """Ошибки при некорректных типах в ответе API."""
+
+    pass
